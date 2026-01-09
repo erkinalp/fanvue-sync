@@ -1,0 +1,58 @@
+fanvue:
+    client_id: "your_client_id"
+    client_secret: "your_client_secret"
+    redirect_uri: "http://localhost:8080/callback"
+
+discord:
+    token: "your_discord_bot_token"
+    guild_id: 123456789012345678
+
+# Mapping: Fanvue Tier -> Discord Role ID
+roles:
+    # Subscribers
+    "987654321098765432": # Role ID
+        type: "subscription"
+        active_subscription: true
+        # on_expiry: "remove_role" (default) | "kick" | "ignore"
+        on_expiry: "remove_role"
+
+    
+    # Whales
+    "112233445566778899":
+        type: "spending"
+        min_lifetime_spend_cents: 50000
+
+    # Example: Mixed Rules (Subscriber OR Big Spender)
+    # This role is granted if EITHER condition is met.
+    "123456789012345678":
+        on_expiry: "remove_role"
+        rules:
+            - type: "subscription"
+              active_subscription: true
+            - type: "spending"
+              min_lifetime_spend_cents: 10000
+
+    # Top Spenders
+    "998877665544332211":
+        type: "top_spender"
+    
+    # Specific Content Unlockers
+    "555555555555555555":
+        type: "unlock"
+        content_id: "uuid-of-the-content"
+
+# Double Upsell (Discord -> Fanvue)
+upsell:
+    # List of Discord SKU IDs (Entitlements) that qualify for an offer
+    required_entitlement_ids:
+        - "123456789012345678"
+    
+    # Also upsell to Server Boosters?
+    upsell_on_boost: true
+    
+    # The message sent to the user. {link} will be replaced if we had a link generator, 
+    # but for now it's just text.
+    offer_message: |
+        Hey there! Thanks for your support on Discord! 
+        As a premium member, here is a special offer for my Fanvue page:
+        https://fanvue.com/myprofile?promo=DISCORDVIP20

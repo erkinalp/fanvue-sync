@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.log
+fanvue_tokens.json
+config.yaml
+fanvue_docs.txt

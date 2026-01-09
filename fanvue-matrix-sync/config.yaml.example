@@ -1,0 +1,36 @@
+fanvue:
+    client_id: "YOUR_FANVUE_CLIENT_ID"
+    client_secret: "YOUR_FANVUE_CLIENT_SECRET"
+    redirect_uri: "http://localhost:8080/callback"
+
+matrix:
+    homeserver: "https://matrix.org"
+    user_id: "@your_bot:matrix.org"
+    access_token: "YOUR_MATRIX_ACCESS_TOKEN"
+
+# Map Room Aliases to requirements
+rooms:
+    # Basic subscribers
+    "#fanvue-subscribers:matrix.org":
+        type: "subscription"
+        active_subscription: true
+        # on_expiry: "kick" (default) | "ignore"
+        on_expiry: "kick"
+    
+    # VIPs (High spenders)
+    "#fanvue-vip:matrix.org":
+        type: "spending"
+        min_lifetime_spend_cents: 10000 # $100
+
+    # Whales
+    "#fanvue-whales:matrix.org":
+        type: "spending"
+        min_lifetime_spend_cents: 50000 # $500
+
+    # Top Spenders (Fanvue Native Status)
+    "#fanvue-top-spenders:matrix.org":
+        type: "top_spender"
+
+    "#fanvue-exclusive-content:matrix.org":
+        type: "unlock"
+        content_id: "uuid-of-the-content"

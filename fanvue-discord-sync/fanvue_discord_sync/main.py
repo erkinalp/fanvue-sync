@@ -8,6 +8,8 @@ from fanvue_common.client import FanvueClient
 from fanvue_common.utils import AddressBook
 from fanvue_common.sync import SyncEngine
 from fanvue_discord_sync.bot import DiscordBot
+from fanvue_discord_sync.discord_oauth import DiscordOAuthClient
+from fanvue_discord_sync.oauth_server import OAuthCallbackServer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -55,11 +57,30 @@ def main():
 
     sync_engine = SyncEngine(client, sync_config)
     bot = DiscordBot(config, sync_engine)
-
-    try:
-        bot.run(config['discord']['token'])
-    except Exception as e:
-        logger.error(f"Bot failed: {e}")
+    
+    # Start OAuth server if Discord OAuth is configured
+    oauth_server = None
+    if config.get('discord', {}).get('oauth_client_id'):
+        discord_oauth = DiscordOAuthClient(config)
+        address_book = AddressBook("discord_addressbook.yaml")
+        oauth_server = OAuthCallbackServer(config, discord_oauth, address_book)
+        
+        oauth_host = config.get('discord', {}).get('oauth_server_host', '0.0.0.0')
+        oauth_port = config.get('discord', {}).get('oauth_server_port', 8080)
+        
+        async def run_with_oauth():
+            await oauth_server.start(oauth_host, oauth_port)
+            await bot.start(config['discord']['token'])
+        
+        try:
+            asyncio.run(run_with_oauth())
+        except Exception as e:
+            logger.error(f"Bot failed: {e}")
+    else:
+        try:
+            bot.run(config['discord']['token'])
+        except Exception as e:
+            logger.error(f"Bot failed: {e}")
 
 if __name__ == "__main__":
     main()

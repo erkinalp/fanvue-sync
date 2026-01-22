@@ -183,3 +183,76 @@ class FanvueClient:
             page_cursor = data.get('nextCursor')
             if not page_cursor:
                 break
+
+    def get_custom_lists(self):
+        """Get all custom lists for the creator."""
+        response = self._request("GET", "/chats/lists/custom")
+        response.raise_for_status()
+        return response.json().get('data', [])
+    
+    def get_custom_list_members(self, list_uuid):
+        """Yields all members of a custom list."""
+        page = 1
+        while True:
+            params = {"page": page, "size": 50}
+            response = self._request("GET", f"/chats/lists/custom/{list_uuid}/members", params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            for member in data.get('data', []):
+                yield member
+            
+            if not data.get('pagination', {}).get('hasMore', False):
+                break
+            page += 1
+    
+    def create_custom_list(self, name):
+        """Create a new custom list."""
+        response = self._request("POST", "/chats/lists/custom", json={"name": name})
+        response.raise_for_status()
+        return response.json()
+    
+    def rename_custom_list(self, list_uuid, name):
+        """Rename a custom list."""
+        response = self._request("PATCH", f"/chats/lists/custom/{list_uuid}", json={"name": name})
+        response.raise_for_status()
+        return response.json()
+    
+    def delete_custom_list(self, list_uuid):
+        """Delete a custom list."""
+        response = self._request("DELETE", f"/chats/lists/custom/{list_uuid}")
+        response.raise_for_status()
+    
+    def add_members_to_custom_list(self, list_uuid, user_uuids):
+        """Add members to a custom list."""
+        response = self._request("POST", f"/chats/lists/custom/{list_uuid}/members", 
+                                json={"userUuids": user_uuids})
+        response.raise_for_status()
+        return response.json()
+    
+    def remove_member_from_custom_list(self, list_uuid, user_uuid):
+        """Remove a member from a custom list."""
+        response = self._request("DELETE", f"/chats/lists/custom/{list_uuid}/members/{user_uuid}")
+        response.raise_for_status()
+    
+    def get_smart_lists(self):
+        """Get all smart lists for the creator."""
+        response = self._request("GET", "/chats/lists/smart")
+        response.raise_for_status()
+        return response.json().get('data', [])
+    
+    def get_smart_list_members(self, list_uuid):
+        """Yields all members of a smart list."""
+        page = 1
+        while True:
+            params = {"page": page, "size": 50}
+            response = self._request("GET", f"/chats/lists/smart/{list_uuid}/members", params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            for member in data.get('data', []):
+                yield member
+            
+            if not data.get('pagination', {}).get('hasMore', False):
+                break
+            page += 1

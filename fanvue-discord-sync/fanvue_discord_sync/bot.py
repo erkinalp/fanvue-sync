@@ -3,6 +3,7 @@ import logging
 import asyncio
 from fanvue_common.utils import AddressBook
 from .offer_store import OfferStore
+from .discord_oauth import DiscordOAuthClient
 
 class DiscordBot(discord.Client):
     def __init__(self, config, sync_engine):
@@ -16,6 +17,11 @@ class DiscordBot(discord.Client):
         self.offer_store = OfferStore()
         self.guild_id = config['discord']['guild_id']
         self.logger = logging.getLogger("DiscordBot")
+        
+        # Initialize Discord OAuth client if configured
+        self.discord_oauth = None
+        if config.get('discord', {}).get('oauth_client_id'):
+            self.discord_oauth = DiscordOAuthClient(config)
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
@@ -68,6 +74,10 @@ class DiscordBot(discord.Client):
         if not guild:
             self.logger.error("Guild not found!")
             return
+
+        # 1.5. Auto-join users to guild if enabled
+        if self.config.get('auto_join', {}).get('enabled', False):
+            await self.auto_join_members_to_guild(membership)
 
         # 2. Iterate roles
         for role_id_str, fanvue_uuids in membership.items():
@@ -149,4 +159,117 @@ class DiscordBot(discord.Client):
         await self.wait_until_ready()
         while not self.is_closed():
             await self.sync_fanvue_roles()
+            await self.sync_list_roles()
             await asyncio.sleep(300) # Sync every 5 minutes OR use a configured interval
+    
+    async def auto_join_members_to_guild(self, membership):
+        """
+        Auto-join users to the guild based on their Fanvue membership.
+        Requires Discord OAuth with guilds.join scope.
+        """
+        if not self.discord_oauth:
+            self.logger.warning("Discord OAuth not configured, skipping auto-join")
+            return
+        
+        all_entitled_uuids = set()
+        for fanvue_uuids in membership.values():
+            all_entitled_uuids.update(fanvue_uuids)
+        
+        auto_join_roles = self.config.get('auto_join', {}).get('roles', [])
+        
+        for fanvue_uuid in all_entitled_uuids:
+            try:
+                result = await self.discord_oauth.add_user_to_guild(
+                    fanvue_uuid, 
+                    roles=auto_join_roles if auto_join_roles else None
+                )
+                if result:
+                    self.logger.info(f"Auto-joined Fanvue user {fanvue_uuid} to guild")
+                await asyncio.sleep(1)
+            except Exception as e:
+                self.logger.error(f"Failed to auto-join {fanvue_uuid}: {e}")
+    
+    async def sync_list_roles(self):
+        """
+        Sync between Fanvue lists and Discord roles based on configuration.
+        Supports bidirectional sync with either side as primary.
+        """
+        list_sync_config = self.config.get('list_sync', {})
+        if not list_sync_config:
+            return
+        
+        guild = self.get_guild(self.guild_id)
+        if not guild:
+            return
+        
+        for sync_name, sync_config in list_sync_config.items():
+            role_id = sync_config.get('discord_role_id')
+            list_uuid = sync_config.get('fanvue_list_uuid')
+            list_type = sync_config.get('fanvue_list_type', 'custom')
+            primary = sync_config.get('primary', 'fanvue')
+            
+            if not role_id or not list_uuid:
+                self.logger.warning(f"Incomplete list_sync config for {sync_name}")
+                continue
+            
+            role = guild.get_role(int(role_id))
+            if not role:
+                self.logger.warning(f"Role {role_id} not found for list sync {sync_name}")
+                continue
+            
+            try:
+                if primary == 'fanvue':
+                    await self._sync_fanvue_list_to_role(list_uuid, list_type, role, guild)
+                elif primary == 'discord':
+                    await self._sync_role_to_fanvue_list(role, list_uuid, guild)
+                else:
+                    self.logger.warning(f"Unknown primary '{primary}' for {sync_name}")
+            except Exception as e:
+                self.logger.error(f"Error in list sync {sync_name}: {e}")
+    
+    async def _sync_fanvue_list_to_role(self, list_uuid, list_type, role, guild):
+        """Sync Fanvue list members to a Discord role (Fanvue as primary)."""
+        list_members = self.sync_engine._get_list_members(list_uuid, list_type)
+        
+        target_discord_ids = set()
+        for fanvue_uuid in list_members:
+            if self.discord_oauth:
+                discord_id = self.discord_oauth.get_discord_id_for_fanvue(fanvue_uuid)
+            else:
+                ids = self.address_book.get_mxids(fanvue_uuid)
+                discord_id = next(iter(ids), None) if ids else None
+            
+            if discord_id:
+                target_discord_ids.add(int(discord_id))
+        
+        current_members_with_role = {m.id for m in role.members}
+        
+        to_add = target_discord_ids - current_members_with_role
+        to_remove = current_members_with_role - target_discord_ids
+        
+        for uid in to_add:
+            member = guild.get_member(uid)
+            if member:
+                await member.add_roles(role, reason="Fanvue List Sync")
+                self.logger.info(f"Added role {role.name} to {member.name} (list sync)")
+                await asyncio.sleep(1)
+        
+        for uid in to_remove:
+            member = guild.get_member(uid)
+            if member:
+                await member.remove_roles(role, reason="Fanvue List Sync")
+                self.logger.info(f"Removed role {role.name} from {member.name} (list sync)")
+                await asyncio.sleep(1)
+    
+    async def _sync_role_to_fanvue_list(self, role, list_uuid, guild):
+        """Sync Discord role members to a Fanvue custom list (Discord as primary)."""
+        if not self.discord_oauth:
+            self.logger.warning("Discord OAuth required for Discord-primary list sync")
+            return
+        
+        discord_member_ids = {m.id for m in role.members}
+        self.sync_engine.sync_role_to_fanvue_list(
+            list_uuid, 
+            discord_member_ids, 
+            self.discord_oauth
+        )

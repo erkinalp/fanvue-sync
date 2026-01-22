@@ -6,6 +6,13 @@ fanvue:
 discord:
     token: "your_discord_bot_token"
     guild_id: 123456789012345678
+    # Discord OAuth settings for auto-join feature (optional)
+    # Create an OAuth2 application at https://discord.com/developers/applications
+    oauth_client_id: "your_discord_oauth_client_id"
+    oauth_client_secret: "your_discord_oauth_client_secret"
+    oauth_redirect_uri: "http://localhost:8080/callback"
+    oauth_server_host: "0.0.0.0"
+    oauth_server_port: 8080
 
 # Mapping: Fanvue Tier -> Discord Role ID
 roles:
@@ -40,6 +47,43 @@ roles:
     "555555555555555555":
         type: "unlock"
         content_id: "uuid-of-the-content"
+    
+    # Fanvue List Members
+    # Grant role to members of a Fanvue custom or smart list
+    "666666666666666666":
+        type: "fanvue_list"
+        list_uuid: "uuid-of-fanvue-custom-list"
+        list_type: "custom"  # or "smart"
+
+# Auto-join to Guild (requires Discord OAuth)
+# Users who link their Discord account via OAuth will be automatically
+# added to your server when they have an active Fanvue membership.
+# Similar to Patreon and Gumroad sync bots.
+auto_join:
+    enabled: true
+    # Optional: roles to assign when user joins via auto-join
+    roles:
+        - "987654321098765432"
+
+# Bidirectional List Sync
+# Sync between Fanvue custom lists and Discord roles.
+# Either side can be the "primary" source of truth.
+list_sync:
+    # Example: Fanvue list -> Discord role
+    # Members of the Fanvue list get the Discord role
+    vip_sync:
+        discord_role_id: "111111111111111111"
+        fanvue_list_uuid: "uuid-of-fanvue-vip-list"
+        fanvue_list_type: "custom"  # or "smart"
+        primary: "fanvue"  # Fanvue list is source of truth
+    
+    # Example: Discord role -> Fanvue list
+    # Members with the Discord role are added to the Fanvue list
+    moderators_sync:
+        discord_role_id: "222222222222222222"
+        fanvue_list_uuid: "uuid-of-moderators-list"
+        fanvue_list_type: "custom"
+        primary: "discord"  # Discord role is source of truth
 
 # Double Upsell (Discord -> Fanvue)
 upsell:

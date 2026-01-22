@@ -12,6 +12,8 @@ class SyncEngine:
         
         # Cache for user insights to avoid rate limits/duplicate calls
         self._user_cache = {}
+        # Cache for list members
+        self._list_cache = {}
 
     def _get_user_insights(self, user_uuid):
         if user_uuid not in self._user_cache:
@@ -108,5 +110,65 @@ class SyncEngine:
                     unlockers = self.store.get_unlockers(content_id)
                     for uuid in unlockers:
                         mapping[room_alias].add(uuid)
+            
+            elif rule_type == 'fanvue_list':
+                # Fanvue list membership check
+                list_uuid = rules.get('list_uuid')
+                list_type = rules.get('list_type', 'custom')
+                if list_uuid:
+                    members = self._get_list_members(list_uuid, list_type)
+                    for uuid in members:
+                        mapping[room_alias].add(uuid)
                         
         return mapping
+    
+    def _get_list_members(self, list_uuid, list_type='custom'):
+        """Get members of a Fanvue list (cached)."""
+        cache_key = f"{list_type}:{list_uuid}"
+        if cache_key not in self._list_cache:
+            try:
+                if list_type == 'smart':
+                    members = list(self.client.get_smart_list_members(list_uuid))
+                else:
+                    members = list(self.client.get_custom_list_members(list_uuid))
+                self._list_cache[cache_key] = {m.get('uuid') or m.get('userUuid') for m in members}
+            except Exception as e:
+                self.logger.error(f"Failed to fetch list {list_uuid}: {e}")
+                self._list_cache[cache_key] = set()
+        return self._list_cache[cache_key]
+    
+    def sync_role_to_fanvue_list(self, list_uuid, discord_member_ids, discord_oauth_client):
+        """
+        Sync Discord role members to a Fanvue custom list (Discord as primary).
+        
+        Args:
+            list_uuid: The Fanvue custom list UUID
+            discord_member_ids: Set of Discord user IDs that have the role
+            discord_oauth_client: DiscordOAuthClient instance for ID mapping
+        """
+        current_list_members = set(self._get_list_members(list_uuid, 'custom'))
+        
+        target_fanvue_uuids = set()
+        for discord_id in discord_member_ids:
+            fanvue_uuid = discord_oauth_client.get_fanvue_id_for_discord(discord_id)
+            if fanvue_uuid:
+                target_fanvue_uuids.add(fanvue_uuid)
+        
+        to_add = target_fanvue_uuids - current_list_members
+        to_remove = current_list_members - target_fanvue_uuids
+        
+        if to_add:
+            try:
+                self.client.add_members_to_custom_list(list_uuid, list(to_add))
+                self.logger.info(f"Added {len(to_add)} members to Fanvue list {list_uuid}")
+            except Exception as e:
+                self.logger.error(f"Failed to add members to list {list_uuid}: {e}")
+        
+        for uuid in to_remove:
+            try:
+                self.client.remove_member_from_custom_list(list_uuid, uuid)
+                self.logger.info(f"Removed {uuid} from Fanvue list {list_uuid}")
+            except Exception as e:
+                self.logger.error(f"Failed to remove {uuid} from list {list_uuid}: {e}")
+        
+        self._list_cache.pop(f"custom:{list_uuid}", None)

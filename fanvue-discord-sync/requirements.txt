@@ -1,3 +1,5 @@
 discord.py
 pyyaml
+aiohttp
+requests
 ../fanvue_common

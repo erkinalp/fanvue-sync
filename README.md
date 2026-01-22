@@ -14,9 +14,13 @@ Both tools share a common library (`fanvue_common`) that handles Fanvue API auth
 
 ## Features
 
-Role/room assignment based on subscription status (active subscribers), lifetime spending thresholds (e.g., users who spent $100+), top spender status (Fanvue's native flag), and specific content unlocks (users who purchased a particular post).
+Role/room assignment based on subscription status (active subscribers), lifetime spending thresholds (e.g., users who spent $100+), top spender status (Fanvue's native flag), specific content unlocks (users who purchased a particular post), and Fanvue list membership.
 
 The Discord bot additionally supports upselling to users who purchase Discord SKUs or boost the server, with configurable promotional messages.
+
+**Auto-Join to Guild**: Like Patreon and Gumroad sync bots, users who link their Discord account via OAuth can be automatically added to your Discord server when they have an active Fanvue membership. This requires Discord OAuth with the `guilds.join` scope.
+
+**Bidirectional List Sync**: Sync between Fanvue custom lists and Discord roles with either side as primary. When Fanvue is primary, list members get the Discord role. When Discord is primary, role members are added to the Fanvue list.
 
 Expiry policies let you choose whether to remove roles/kick users, or grandfather them when their entitlement lapses.
 
@@ -61,6 +65,12 @@ fanvue:
 discord:
   token: "your_discord_bot_token"
   guild_id: 123456789012345678
+  # Discord OAuth settings for auto-join feature (optional)
+  oauth_client_id: "your_discord_oauth_client_id"
+  oauth_client_secret: "your_discord_oauth_client_secret"
+  oauth_redirect_uri: "http://localhost:8080/callback"
+  oauth_server_host: "0.0.0.0"
+  oauth_server_port: 8080
 
 roles:
   "987654321098765432":  # Discord Role ID
@@ -78,6 +88,31 @@ roles:
   "555555555555555555":
     type: "unlock"
     content_id: "uuid-of-the-content"
+
+  "666666666666666666":
+    type: "fanvue_list"
+    list_uuid: "uuid-of-fanvue-custom-list"
+    list_type: "custom"  # or "smart"
+
+# Auto-join configuration (requires Discord OAuth)
+auto_join:
+  enabled: true
+  roles:  # Optional: roles to assign on join
+    - "987654321098765432"
+
+# Bidirectional list sync configuration
+list_sync:
+  vip_sync:
+    discord_role_id: "111111111111111111"
+    fanvue_list_uuid: "uuid-of-fanvue-list"
+    fanvue_list_type: "custom"
+    primary: "fanvue"  # or "discord"
+  
+  moderators_sync:
+    discord_role_id: "222222222222222222"
+    fanvue_list_uuid: "uuid-of-moderators-list"
+    fanvue_list_type: "custom"
+    primary: "discord"  # Discord role members sync to Fanvue list
 
 upsell:
   required_entitlement_ids:
@@ -132,6 +167,7 @@ rooms:
 | `spending` | Users who spent above a threshold | `min_lifetime_spend_cents` |
 | `top_spender` | Users with Fanvue's top spender badge | None |
 | `unlock` | Users who unlocked specific content | `content_id` |
+| `fanvue_list` | Members of a Fanvue list | `list_uuid`, `list_type` (custom/smart) |
 
 ### Expiry Policies
 
@@ -153,7 +189,27 @@ fanvue-uuid-2:
   - "123456789012345678"  # Discord user ID
 ```
 
-Users must be added to the address book for sync to work. A future version may support self-service account linking.
+Users must be added to the address book for sync to work. With Discord OAuth enabled, users can self-link their accounts via the OAuth flow.
+
+## Discord Auto-Join Setup
+
+To enable automatic guild joining (like Patreon/Gumroad sync bots):
+
+1. Create a Discord application at https://discord.com/developers/applications
+2. Enable OAuth2 and add the redirect URI (e.g., `http://yourdomain.com:8080/callback`)
+3. Note your OAuth2 Client ID and Client Secret
+4. Ensure your bot has the `MANAGE_GUILD` permission in your server
+5. Add the OAuth configuration to your `config.yaml`
+
+Users can link their Discord accounts by visiting `http://yourdomain.com:8080/link?fanvue_uuid=THEIR_UUID`. After authorizing, they will be automatically added to your Discord server when they have an active Fanvue membership.
+
+## Bidirectional List Sync
+
+The list sync feature allows you to keep a Fanvue custom list and a Discord role in sync:
+
+**Fanvue as Primary**: Members of the Fanvue list automatically receive the Discord role. When removed from the list, the role is removed.
+
+**Discord as Primary**: Members with the Discord role are automatically added to the Fanvue custom list. When the role is removed, they are removed from the list. This requires Discord OAuth to be configured for user ID mapping.
 
 ## Architecture
 

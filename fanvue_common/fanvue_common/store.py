@@ -1,5 +1,4 @@
 import sqlite3
-import datetime
 import logging
 
 class TransactionStore:

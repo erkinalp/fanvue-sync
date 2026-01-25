@@ -246,11 +246,13 @@ The Fanvue API allows 100 requests per 60 seconds. The client automatically hand
 
 Fanvue rules forbid facilitation of off-platform transactions in a manner that evade platform fees. For this reason, never offer a 100% off Fanvue subscription in exchange of a Discord boost or a Discord Creator SKU. Similarly, never offer 100% off Fanvue subscriptions in exchange for paying to register a Matrix homeserver. Partial discounts or VIP lists are usually okay, as they still encourage the member to spend in the Fanvue side. For the same reason, we didn't offer such a feature natively. 
 
-When granting access to an age-restricted channel on Discord or a NSFW room on Matrix side for a role or granting access to a privileged DM list on Fanvue side, it's the member's responsibility to ensure they are not connecting their account with someone else's.
+When granting access to an age-restricted channel on Discord for a role or a NSFW room on Matrix side or granting access to a privileged DM list on Fanvue side, it's the member's responsibility to ensure they are not connecting their account with someone else's.
 
-DMs are intentionally not bridged across platforms, as platform policies are significantly different and it could've caused moderation headaches. Neither Matrix or Discord have a concept of pay-to-unlock DMs, either; this project wouldn't have existed if Discord had that concept.
+DMs are intentionally not bridged across platforms, as platform policies are significantly different and it could've caused moderation headaches. Neither Matrix or Discord have a concept of pay-to-unlock DMs, either; this project wouldn't have existed if either had that concept.
 
-Anything sent to a federated Matrix room (including 1:1 chats) cannot easily be withdrawn and assume that side of content may spread unmoderated.
+Anything sent to a federated Matrix room (including 1:1 chats) cannot reliably be withdrawn and assume that side of content may spread unmoderated.
+Anything sent to a Discord channel can easily be withdrawn, but can be captured in the meantime.
+Anything sent to a Fanvue DM cannot easily be withdrawn, and assume that side of content may be read by platform staff at times.
 
 ## License
 

@@ -244,7 +244,7 @@ The Fanvue API allows 100 requests per 60 seconds. The client automatically hand
 
 ## Things to Keep in Mind and Intentionally Omitted Features
 
-Fanvue rules forbid facilitation of off-platform transactions in a manner that evade platform fees. For this reason, never offer a 100% off Fanvue subscription in exchange of a Discord boost or a Discord Creator SKU. Similarly, never offer 100% off Fanvue subscriptions in exchange for paying to register a Matrix homeserver. Partial discounts or VIP lists are usually okay, as they still encourage the member to spend in the Fanvue side. For the same reason, we didn't offer such a feature natively. 
+Fanvue rules forbid facilitation of on-platform in a manner that evade platform fees. For this reason, never offer a 100% off Fanvue subscription in exchange of a Discord boost or a Discord Creator SKU. Similarly, never offer 100% off Fanvue subscriptions in exchange for paying to register a Matrix homeserver. Partial discounts or VIP lists are usually okay, as they still encourage the member to spend in the Fanvue side. For the same reason, we didn't offer such a feature natively. 
 
 When granting access to an age-restricted channel on Discord for a role or a NSFW room on Matrix side or granting access to a privileged DM list on Fanvue side, it's the member's responsibility to ensure they are not connecting their account with someone else's.
 

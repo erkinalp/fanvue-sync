@@ -4,6 +4,7 @@ import time
 import sqlite3
 import logging
 import requests
+import aiohttp
 from urllib.parse import urlencode
 
 class DiscordOAuthClient:
@@ -223,7 +224,7 @@ class DiscordOAuthClient:
     async def add_user_to_guild(self, fanvue_uuid, roles=None):
         """
         Add a user to the guild using their OAuth token.
-        This requires the guilds.join scope and bot with MANAGE_GUILD permission.
+        This requires the guilds.join scope and bot with CREATE_INSTANT_INVITE permission.
         
         Args:
             fanvue_uuid: The Fanvue user UUID
@@ -248,17 +249,17 @@ class DiscordOAuthClient:
         if roles:
             payload["roles"] = [str(r) for r in roles]
         
-        response = requests.put(
-            url,
-            json=payload,
-            headers={"Authorization": f"Bot {self.bot_token}"}
-        )
-        
-        if response.status_code == 201:
-            self.logger.info(f"Added user {discord_user_id} to guild {self.guild_id}")
-            return True
-        elif response.status_code == 204:
-            self.logger.info(f"User {discord_user_id} already in guild {self.guild_id}")
-            return False
-        else:
-            response.raise_for_status()
+        async with aiohttp.ClientSession() as session:
+            async with session.put(
+                url,
+                json=payload,
+                headers={"Authorization": f"Bot {self.bot_token}"}
+            ) as response:
+                if response.status == 201:
+                    self.logger.info(f"Added user {discord_user_id} to guild {self.guild_id}")
+                    return True
+                elif response.status == 204:
+                    self.logger.info(f"User {discord_user_id} already in guild {self.guild_id}")
+                    return False
+                else:
+                    response.raise_for_status()

@@ -4,6 +4,7 @@ import time
 import sqlite3
 import logging
 import requests
+import aiohttp
 from urllib.parse import urlencode
 
 class DiscordOAuthClient:
@@ -20,6 +21,7 @@ class DiscordOAuthClient:
         self.guild_id = config['discord']['guild_id']
         self.db_path = db_path
         self.logger = logging.getLogger("DiscordOAuth")
+        self._session = None
         self._init_db()
     
     def _init_db(self):
@@ -220,10 +222,22 @@ class DiscordOAuthClient:
         conn.close()
         return {row[0]: row[1] for row in rows}
     
+    async def _get_session(self):
+        """Get or create a reusable aiohttp ClientSession."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+    
+    async def close(self):
+        """Close the aiohttp session. Call this when done with the client."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
+    
     async def add_user_to_guild(self, fanvue_uuid, roles=None):
         """
         Add a user to the guild using their OAuth token.
-        This requires the guilds.join scope and bot with MANAGE_GUILD permission.
+        This requires the guilds.join scope and bot with CREATE_INSTANT_INVITE permission.
         
         Args:
             fanvue_uuid: The Fanvue user UUID
@@ -248,17 +262,17 @@ class DiscordOAuthClient:
         if roles:
             payload["roles"] = [str(r) for r in roles]
         
-        response = requests.put(
+        session = await self._get_session()
+        async with session.put(
             url,
             json=payload,
             headers={"Authorization": f"Bot {self.bot_token}"}
-        )
-        
-        if response.status_code == 201:
-            self.logger.info(f"Added user {discord_user_id} to guild {self.guild_id}")
-            return True
-        elif response.status_code == 204:
-            self.logger.info(f"User {discord_user_id} already in guild {self.guild_id}")
-            return False
-        else:
-            response.raise_for_status()
+        ) as response:
+            if response.status == 201:
+                self.logger.info(f"Added user {discord_user_id} to guild {self.guild_id}")
+                return True
+            elif response.status == 204:
+                self.logger.info(f"User {discord_user_id} already in guild {self.guild_id}")
+                return False
+            else:
+                response.raise_for_status()

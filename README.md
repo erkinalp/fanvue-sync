@@ -52,6 +52,8 @@ python -m fanvue_matrix_sync.main
 
 On first run, you'll be prompted to authorize via Fanvue OAuth. The tokens are saved to `fanvue_tokens.json` for subsequent runs.
 
+> **Note (API v1):** the tools now call the current `/v1` Fanvue API. The OAuth flow additionally requests `read:chat`/`write:chat` scopes for list sync — delete `fanvue_tokens.json` and re-authorize after upgrading.
+
 ## Configuration
 
 ### Discord Configuration

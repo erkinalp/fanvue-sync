@@ -32,7 +32,9 @@ class SyncEngine:
         insights = self._get_user_insights(user_uuid)
         if not insights:
             return 0
-        return insights.get('spending', {}).get('total', {}).get('gross', 0)
+        # 'gross' is the deprecated alias of 'total' in the v1 fan-insights schema.
+        totals = insights.get('spending', {}).get('total', {})
+        return totals.get('total', totals.get('gross', 0))
 
     def compute_room_membership(self):
         """

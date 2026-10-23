@@ -33,7 +33,7 @@ class FanvueClient:
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
-            "scope": "openid offline_access read:fan read:insights",
+            "scope": "openid offline_access read:fan read:insights read:chat write:chat",
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
             "state": base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8')
@@ -118,41 +118,40 @@ class FanvueClient:
                 
             return response
 
-    def get_subscribers(self):
-        """Yields all active subscribers"""
-        page = 1
+    def _iter_pages(self, endpoint, params=None):
+        """Yields items of a cursor-paginated (`nextCursor`) list endpoint.
+
+        The cursor is opaque and passed back unchanged; the page size
+        stays constant for the whole walk.
+        """
+        params = dict(params or {})
+        params.setdefault("size", 50)
+        cursor = None
         while True:
-            params = {"page": page, "size": 50}
-            response = self._request("GET", "/subscribers", params=params)
+            if cursor:
+                params["cursor"] = cursor
+            response = self._request("GET", endpoint, params=params)
             response.raise_for_status()
             data = response.json()
-            
-            for subscriber in data['data']:
-                yield subscriber
-                
-            if not data['pagination']['hasMore']:
+
+            for item in data.get('data', []):
+                yield item
+
+            cursor = data.get('nextCursor')
+            if not cursor:
                 break
-            page += 1
+
+    def get_subscribers(self):
+        """Yields all active subscribers"""
+        yield from self._iter_pages("/v1/subscribers")
 
     def get_followers(self):
         """Yields all followers (who are not subscribers)"""
-        page = 1
-        while True:
-            params = {"page": page, "size": 50}
-            response = self._request("GET", "/followers", params=params)
-            response.raise_for_status()
-            data = response.json()
-            
-            for follower in data['data']:
-                yield follower
-                
-            if not data['pagination']['hasMore']:
-                break
-            page += 1
+        yield from self._iter_pages("/v1/followers")
 
     def get_fan_insights(self, fan_uuid):
         """Get spending and status insights for a fan"""
-        response = self._request("GET", f"/insights/fans/{fan_uuid}")
+        response = self._request("GET", f"/v1/insights/fans/{fan_uuid}")
         if response.status_code == 404:
             return None
         response.raise_for_status()
@@ -173,7 +172,7 @@ class FanvueClient:
             if sources:
                 params['source'] = ",".join(sources)
                 
-            response = self._request("GET", "/insights/earnings", params=params)
+            response = self._request("GET", "/v1/insights/earnings", params=params)
             response.raise_for_status()
             data = response.json()
             
@@ -186,73 +185,52 @@ class FanvueClient:
 
     def get_custom_lists(self):
         """Get all custom lists for the creator."""
-        response = self._request("GET", "/chats/lists/custom")
-        response.raise_for_status()
-        return response.json().get('data', [])
-    
+        return list(self._iter_pages("/v1/chats/lists/custom"))
+
     def get_custom_list_members(self, list_uuid):
         """Yields all members of a custom list."""
-        page = 1
-        while True:
-            params = {"page": page, "size": 50}
-            response = self._request("GET", f"/chats/lists/custom/{list_uuid}/members", params=params)
-            response.raise_for_status()
-            data = response.json()
-            
-            for member in data.get('data', []):
-                yield member
-            
-            if not data.get('pagination', {}).get('hasMore', False):
-                break
-            page += 1
-    
+        yield from self._iter_pages(f"/v1/chats/lists/custom/{list_uuid}")
+
     def create_custom_list(self, name):
         """Create a new custom list."""
-        response = self._request("POST", "/chats/lists/custom", json={"name": name})
+        response = self._request("POST", "/v1/chats/lists/custom", json={"name": name})
         response.raise_for_status()
         return response.json()
-    
+
     def rename_custom_list(self, list_uuid, name):
         """Rename a custom list."""
-        response = self._request("PATCH", f"/chats/lists/custom/{list_uuid}", json={"name": name})
+        response = self._request("PATCH", f"/v1/chats/lists/custom/{list_uuid}", json={"name": name})
         response.raise_for_status()
         return response.json()
-    
+
     def delete_custom_list(self, list_uuid):
         """Delete a custom list."""
-        response = self._request("DELETE", f"/chats/lists/custom/{list_uuid}")
+        response = self._request("DELETE", f"/v1/chats/lists/custom/{list_uuid}")
         response.raise_for_status()
-    
+
     def add_members_to_custom_list(self, list_uuid, user_uuids):
-        """Add members to a custom list."""
-        response = self._request("POST", f"/chats/lists/custom/{list_uuid}/members", 
-                                json={"userUuids": user_uuids})
-        response.raise_for_status()
-        return response.json()
-    
+        """Add members to a custom list (batched: the API accepts max 100 per call)."""
+        result = None
+        for i in range(0, len(user_uuids), 100):
+            batch = user_uuids[i:i + 100]
+            response = self._request("POST", f"/v1/chats/lists/custom/{list_uuid}/members",
+                                    json={"userUuids": batch})
+            response.raise_for_status()
+            result = response.json()
+        return result
+
     def remove_member_from_custom_list(self, list_uuid, user_uuid):
         """Remove a member from a custom list."""
-        response = self._request("DELETE", f"/chats/lists/custom/{list_uuid}/members/{user_uuid}")
+        response = self._request("DELETE", f"/v1/chats/lists/custom/{list_uuid}/members/{user_uuid}")
         response.raise_for_status()
-    
+
     def get_smart_lists(self):
-        """Get all smart lists for the creator."""
-        response = self._request("GET", "/chats/lists/smart")
+        """Get all smart lists for the creator (returns a plain array)."""
+        response = self._request("GET", "/v1/chats/lists/smart")
         response.raise_for_status()
-        return response.json().get('data', [])
-    
+        data = response.json()
+        return data if isinstance(data, list) else data.get('data', [])
+
     def get_smart_list_members(self, list_uuid):
         """Yields all members of a smart list."""
-        page = 1
-        while True:
-            params = {"page": page, "size": 50}
-            response = self._request("GET", f"/chats/lists/smart/{list_uuid}/members", params=params)
-            response.raise_for_status()
-            data = response.json()
-            
-            for member in data.get('data', []):
-                yield member
-            
-            if not data.get('pagination', {}).get('hasMore', False):
-                break
-            page += 1
+        yield from self._iter_pages(f"/v1/chats/lists/smart/{list_uuid}")
